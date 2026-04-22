@@ -2,31 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Productivity App</title>
+  <title>Focus To-Do</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
-  <div class="container">
-    <h1>Productivity Dashboard</h1>
-
-    <!-- Todo Section -->
-    <div class="card">
-      <h2>To-Do List</h2>
-      <div class="todo-input">
-        <input type="text" id="taskInput" placeholder="Add a task...">
-        <button onclick="addTask()">Add</button>
+  <div class="main-container">
+    <!-- Left Side - Timer Section -->
+    <div class="timer-section">
+      <div class="timer-display">
+        <svg class="circular-progress" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="95" class="progress-bg"></circle>
+          <circle cx="100" cy="100" r="95" class="progress-bar" id="progressCircle"></circle>
+        </svg>
+        <div class="timer-text" id="timer">25:00</div>
       </div>
-      <ul id="taskList"></ul>
+      
+      <button class="start-btn" id="startBtn" onclick="toggleTimer()">
+        <span class="play-icon">▶</span> Start to Focus
+      </button>
+
+      <!-- Current Task -->
+      <div class="current-task">
+        <input type="text" id="currentTaskInput" placeholder="What are you focusing on?" class="task-input">
+      </div>
+
+      <!-- Bottom Controls -->
+      <div class="controls">
+        <button class="control-btn" id="fullscreenBtn" onclick="toggleFullscreen()">
+          <span class="icon">⛶</span>
+          <span>Fullscreen</span>
+        </button>
+        <button class="control-btn" id="timerModeBtn" onclick="toggleTimerMode()">
+          <span class="icon">⏱</span>
+          <span>Timer Mode</span>
+        </button>
+        <button class="control-btn" id="soundBtn" onclick="toggleSound()">
+          <span class="icon">♪</span>
+          <span>White Noise</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Timer Section -->
-    <div class="card">
-      <h2>Focus Timer</h2>
-      <h1 id="timer">25:00</h1>
-      <div class="buttons">
-        <button onclick="startTimer()">Start</button>
-        <button onclick="resetTimer()">Reset</button>
+    <!-- Right Side - Today's Focus Time -->
+    <div class="sidebar">
+      <div class="sidebar-header">Today</div>
+      
+      <div class="focus-time-header">
+        <div class="focus-time-label">Focus Time of Today</div>
+        <div class="focus-time-display" id="totalFocusTime">0h 0m</div>
+      </div>
+
+      <div class="today-tasks">
+        <h3>Today</h3>
+        <div id="todayList" class="task-list">
+          <div class="task-item">
+            <input type="checkbox" class="task-check">
+            <span class="task-name">Sample Task 1</span>
+            <span class="task-time">25m</span>
+          </div>
+          <div class="task-item">
+            <input type="checkbox" class="task-check">
+            <span class="task-name">Sample Task 2</span>
+            <span class="task-time">15m</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="new-task-input">
+        <input type="text" id="newTaskInput" placeholder="Add new task..." class="sidebar-input">
+        <button onclick="addNewTask()" class="add-btn">+</button>
+      </div>
+
+      <div class="focus-records">
+        <h3>Today's Focus Time Records</h3>
+        <div id="focusRecords" class="records-list">
+          <div class="record-item" style="background: #FFA500;">
+            <span>Sample Task</span>
+            <span>25m</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

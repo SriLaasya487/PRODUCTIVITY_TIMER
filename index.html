@@ -1,89 +1,156 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Focus To-Do</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FocusFlow — Deep Work Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="main-container">
-    <!-- Left Side - Timer Section -->
-    <div class="timer-section">
-      <div class="timer-display">
-        <svg class="circular-progress" viewBox="0 0 200 200">
-          <circle cx="100" cy="100" r="95" class="progress-bg"></circle>
-          <circle cx="100" cy="100" r="95" class="progress-bar" id="progressCircle"></circle>
-        </svg>
-        <div class="timer-text" id="timer">25:00</div>
+  <div class="app-shell">
+    <!-- Header / Brand & Global Actions -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </div>
+        <span class="brand-name">FocusFlow</span>
       </div>
-      
-      <button class="start-btn" id="startBtn" onclick="toggleTimer()">
-        <span class="play-icon">▶</span> Start to Focus
-      </button>
-
-      <!-- Current Task -->
-      <div class="current-task">
-        <input type="text" id="currentTaskInput" placeholder="What are you focusing on?" class="task-input">
+      <div class="header-status">
+        <span class="status-badge">
+          <span class="status-dot"></span>
+          <span id="streakBadge">5 day streak</span>
+        </span>
+        <span class="shortcut-tip">
+          <kbd>Space</kbd> toggle &bull; <kbd>R</kbd> reset
+        </span>
       </div>
+    </header>
 
-      <!-- Bottom Controls -->
-      <div class="controls">
-        <button class="control-btn" id="fullscreenBtn" onclick="toggleFullscreen()">
-          <span class="icon">⛶</span>
-          <span>Fullscreen</span>
-        </button>
-        <button class="control-btn" id="timerModeBtn" onclick="toggleTimerMode()">
-          <span class="icon">⏱</span>
-          <span>Timer Mode</span>
-        </button>
-        <button class="control-btn" id="soundBtn" onclick="toggleSound()">
-          <span class="icon">♪</span>
-          <span>White Noise</span>
-        </button>
-      </div>
-    </div>
+    <!-- Main Workspace Layout -->
+    <main class="workspace">
+      <!-- Left: Primary Timer Core -->
+      <section class="timer-card">
+        <!-- Mode Tabs -->
+        <div class="mode-tabs" role="tablist">
+          <button class="mode-btn active" data-mode="pomodoro" role="tab" aria-selected="true">Focus (25m)</button>
+          <button class="mode-btn" data-mode="shortBreak" role="tab" aria-selected="false">Short Break (5m)</button>
+          <button class="mode-btn" data-mode="longBreak" role="tab" aria-selected="false">Long Break (15m)</button>
+        </div>
 
-    <!-- Right Side - Today's Focus Time -->
-    <div class="sidebar">
-      <div class="sidebar-header">Today</div>
-      
-      <div class="focus-time-header">
-        <div class="focus-time-label">Focus Time of Today</div>
-        <div class="focus-time-display" id="totalFocusTime">0h 0m</div>
-      </div>
-
-      <div class="today-tasks">
-        <h3>Today</h3>
-        <div id="todayList" class="task-list">
-          <div class="task-item">
-            <input type="checkbox" class="task-check">
-            <span class="task-name">Sample Task 1</span>
-            <span class="task-time">25m</span>
-          </div>
-          <div class="task-item">
-            <input type="checkbox" class="task-check">
-            <span class="task-name">Sample Task 2</span>
-            <span class="task-time">15m</span>
+        <!-- Circular Dial -->
+        <div class="dial-container">
+          <svg class="dial-svg" viewBox="0 0 300 300">
+            <circle class="dial-track" cx="150" cy="150" r="138"></circle>
+            <circle class="dial-fill" id="progressRing" cx="150" cy="150" r="138"></circle>
+          </svg>
+          <div class="dial-content">
+            <span class="dial-tag" id="sessionLabel">Session 1 of 4</span>
+            <div class="dial-digits" id="timerDisplay">25:00</div>
+            <div class="current-task-pill" id="activeTaskDisplay" title="Click to rename active target">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+              <span id="activeTaskText">Refactoring core timer logic</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="new-task-input">
-        <input type="text" id="newTaskInput" placeholder="Add new task..." class="sidebar-input">
-        <button onclick="addNewTask()" class="add-btn">+</button>
-      </div>
+        <!-- Action Buttons -->
+        <div class="dial-actions">
+          <button class="btn btn-secondary" id="resetBtn" title="Reset Session (R)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+          </button>
+          <button class="btn btn-primary" id="startBtn">
+            <span id="startIcon">&#9654;</span>
+            <span id="startText">Start Focus</span>
+          </button>
+          <button class="btn btn-secondary" id="quickAddBtn" title="Extend +5 mins">
+            +5m
+          </button>
+        </div>
 
-      <div class="focus-records">
-        <h3>Today's Focus Time Records</h3>
-        <div id="focusRecords" class="records-list">
-          <div class="record-item" style="background: #FFA500;">
-            <span>Sample Task</span>
-            <span>25m</span>
+        <!-- Ambient Sound & Screen Tray -->
+        <div class="timer-tray">
+          <div class="ambient-control">
+            <button class="tray-btn" id="ambientToggleBtn" title="Toggle Built-in Rain Audio">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+              <span>Gentle Rain (Audio)</span>
+            </button>
+            <input type="range" id="soundVolume" min="0" max="100" value="45" class="vol-slider" title="Volume">
+          </div>
+          <button class="tray-btn" id="fullscreenBtn" title="Toggle Focus Mode (F)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+            <span>Focus Mode</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Right: Structured Sidebar (Metrics, Tasks, Log) -->
+      <aside class="sidebar-panel">
+        <!-- Daily Progress -->
+        <div class="stats-card">
+          <div class="stats-header">
+            <div>
+              <span class="stats-meta">Today's Focus</span>
+              <div class="stats-total" id="totalFocusTime">0h 00m</div>
+            </div>
+            <div class="goal-indicator">
+              <span class="goal-pct" id="goalPercentage">0%</span>
+              <span class="goal-sub">of 4h target</span>
+            </div>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="dailyProgressBar" style="width: 0%;"></div>
           </div>
         </div>
-      </div>
-    </div>
+
+        <!-- Task Checklist -->
+        <div class="tasks-section">
+          <div class="tasks-header">
+            <h3>Tasks</h3>
+            <span class="tasks-count" id="taskCountBadge">0 done</span>
+          </div>
+          <form class="task-form" id="taskForm">
+            <input type="text" id="newTaskInput" placeholder="What are you working on?" required autocomplete="off" />
+            <button type="submit" class="task-add-btn" title="Add task">+</button>
+          </form>
+          <ul class="task-list" id="taskList">
+            <!-- Dynamic task items -->
+          </ul>
+        </div>
+
+        <!-- Interval Session Log -->
+        <div class="history-section">
+          <div class="history-header">
+            <h3>Session History</h3>
+            <button class="clear-log-btn" id="clearLogBtn">Clear</button>
+          </div>
+          <div class="history-list" id="historyList">
+            <p class="history-empty" id="emptyHistoryMsg">No sessions completed yet today. Hit start to begin!</p>
+          </div>
+        </div>
+      </aside>
+    </main>
   </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toastMessage">Session Completed</div>
 
   <script src="script.js"></script>
 </body>

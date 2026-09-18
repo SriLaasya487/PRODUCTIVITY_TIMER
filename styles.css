@@ -1,23 +1,23 @@
 :root {
-  --bg-primary: #0e121a;
-  --bg-secondary: #141a24;
-  --bg-tertiary: #1b2230;
-  --bg-elevated: #222b3d;
+  --bg-primary: #18181b;      
+  --bg-secondary: #27272a;    
+  --bg-tertiary: #3f3f46;     
+  --bg-elevated: #52525b;     
   
-  --border-subtle: #242c3d;
-  --border-medium: #313c52;
-  --border-active: #485777;
+  --border-subtle: #3f3f46;   
+  --border-medium: #52525b;   
+  --border-active: #71717a;   
   
-  --text-primary: #f0f3f8;
-  --text-secondary: #94a1b8;
-  --text-muted: #5e6b82;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
   
-  --accent: #5e6df7;
-  --accent-hover: #4f5de6;
-  --accent-glow: rgba(94, 109, 247, 0.25);
+  --accent: #6366f1;          
+  --accent-hover: #4f46e5;    
+  --accent-glow: rgba(99, 102, 241, 0.12); 
   
   --success: #22c55e;
-  --success-glow: rgba(34, 197, 94, 0.2);
+  --success-glow: rgba(34, 197, 94, 0.15);
   --danger: #ef4444;
 
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;

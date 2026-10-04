@@ -1,508 +1,113 @@
-/**
- * FocusFlow — Core Timer Engine & State Controller
- * Features:
- * - Tabular countdown timer with SVG ring visualization
- * - Non-blocking UI (toasts & Web Audio API chime, no blocking alert dialogs)
- * - Built-in procedural pink noise rain synthesizer (zero external mp3 dependencies)
- * - LocalStorage persistence (tasks, elapsed minutes, session history)
- * - Global keyboard shortcuts (Space to toggle, R to reset, F for fullscreen)
- */
-
-// ==========================================
-// Storage Keys & Preset Configurations
-// ==========================================
-const STORAGE_KEYS = {
-  TASKS: 'focusflow_tasks',
-  HISTORY: 'focusflow_history',
-  TOTAL_MINS: 'focusflow_total_mins',
-  ACTIVE_TASK: 'focusflow_active_task'
+const $=id=>document.getElementById(id),S={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const DUR={pomodoro:1500,shortBreak:300,longBreak:900},PETS=['🐱','🐶','🐼','🦊','🐰'],
+TITLES=['Sleepy Seedling','Curious Cub','Cozy Explorer','Brave Buddy','Focus Ranger','Zen Master','Legendary Pal'],
+SAY={idle:['Ready when you are!','Pick a quest and let\'s go!','I believe in you!'],focus:['Shh… deep focus mode 🤫','You\'re doing amazing!','Keep going, I\'m right here!','One tiny step at a time.'],snack:['Snack time! Stretch a bit 🍓','Drink some water!'],nap:['Nap time… zzz','Rest those eyes 🌙'],win:['Yay!! Session complete! 🎉','You did it! +XP!','So proud of you! ✨']},
+TROPHY=[['🌱','First session',()=>sessions>=1],['🔥','3 sessions in a day',()=>done>=3],['⭐','100 XP',()=>xp>=100],['👑','Reach level 5',()=>level()>=5]];
+const today=new Date().toDateString();
+if(S.get('ff_day')!==today){S.set('ff_day',today);S.set('ff_hist',[]);S.set('ff_mins',0);S.set('ff_done',0)}
+let mode='pomodoro',total=DUR.pomodoro,left=total,iv=null,endAt=0,running=false,
+done=S.get('ff_done',0),mins=S.get('ff_mins',0),hist=S.get('ff_hist',[]),tasks=S.get('ff_tasks',[]),active=S.get('ff_active','My first quest'),
+xp=S.get('ff_xp',0),sessions=S.get('ff_sessions',0),pet=S.get('ff_pet',0),unlocked=S.get('ff_trophies',[]);
+const pick=a=>a[Math.floor(Math.random()*a.length)],level=()=>Math.floor(xp/50)+1;
+function say(k){$('bubble').textContent=pick(SAY[k])}
+function draw(){
+  const m=String(Math.floor(left/60)).padStart(2,'0'),s=String(left%60).padStart(2,'0');
+  $('time').textContent=m+':'+s;document.title=`${m}:${s} · ${active}`;
+  $('ring').style.strokeDashoffset=867*(1-left/total);
+  $('go').textContent=running?'⏸ Pause':(left<total?'▶ Resume':(mode==='pomodoro'?'▶ Start quest':'▶ Start break'));
+  $('go').classList.toggle('run',running);$('timerCard').classList.toggle('run',running&&mode==='pomodoro');$('timerCard').classList.toggle('sleep',running&&mode!=='pomodoro');
+}
+function tick(){left=Math.max(0,Math.ceil((endAt-Date.now())/1000));draw();if(left===0)finish()}
+function start(){if(running)return;running=true;endAt=Date.now()+left*1000;iv=setInterval(tick,250);say(mode==='pomodoro'?'focus':mode==='shortBreak'?'snack':'nap');draw()}
+function pause(){if(!running)return;running=false;clearInterval(iv);draw()}
+function toggle(){running?pause():start()}
+function reset(){pause();left=total;draw()}
+function setMode(m){
+  mode=m;total=left=DUR[m];pause();document.body.dataset.mode=m;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.mode===m));
+  $('lbl').textContent=m==='pomodoro'?`Quest ${done%4+1} of 4`:m==='shortBreak'?'Snack break':'Long nap';
+  document.querySelectorAll('#dots i').forEach((d,i)=>d.classList.toggle('on',i<(done%4||(m==='longBreak'?4:0))));
+  $('pet').textContent=m==='pomodoro'?PETS[pet]:'😴'.replace('😴',PETS[pet]);say(m==='pomodoro'?'idle':m==='shortBreak'?'snack':'nap');draw();
+}
+function finish(){
+  pause();chime();confetti();
+  if(mode==='pomodoro'){
+    const n=Math.round(total/60),before=level();done++;sessions++;mins+=n;xp+=n;
+    hist.unshift({task:active,min:n,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});
+    S.set('ff_done',done);S.set('ff_mins',mins);S.set('ff_hist',hist);S.set('ff_xp',xp);S.set('ff_sessions',sessions);
+    renderHist();stats();setMode(done%4===0?'longBreak':'shortBreak');
+    $('pet').classList.add('cheer');setTimeout(()=>$('pet').classList.remove('cheer'),1700);
+    say('win');toast(level()>before?`🎊 Level up! You're now level ${level()}`:`+${n} XP earned!`);
+  }else{toast('Break over. Your buddy is ready!');setMode('pomodoro')}
+}
+function stats(){
+  const l=level();$('lvl').textContent='Lv '+l;$('lvlTitle').textContent=TITLES[Math.min(l-1,TITLES.length-1)];
+  $('xpTxt').textContent=`${xp%50}/50 XP`;$('barFill').style.width=(xp%50)*2+'%';
+  $('today').textContent=`Today: ${Math.floor(mins/60)}h ${String(mins%60).padStart(2,'0')}m`;
+  const t=$('trophies');t.innerHTML='';
+  TROPHY.forEach(([e,n,ok],i)=>{const d=document.createElement('div'),on=ok();d.className='tr'+(on?' on':'');d.innerHTML=`<b>${e}</b>`;d.append(n);t.append(d);
+    if(on&&!unlocked.includes(i)){unlocked.push(i);S.set('ff_trophies',unlocked);if(started)toast(`🏆 Trophy unlocked: ${n}`)}});
+  const p=$('picker');p.innerHTML='';
+  PETS.forEach((e,i)=>{const b=document.createElement('button');b.textContent=e;b.className=i===pet?'on':'';b.title='Choose buddy';
+    b.onclick=()=>{pet=i;S.set('ff_pet',i);$('pet').textContent=e;stats();say('idle')};p.append(b)});
+}
+function renderHist(){
+  const hl=$('hl');hl.innerHTML='';
+  if(!hist.length){hl.innerHTML='<p class="empty">Nothing hatched yet today.<br>Finish a quest to fill your log!</p>';return}
+  hist.slice(0,8).forEach(h=>{const d=document.createElement('div');d.className='hi';
+    const a=document.createElement('span'),b=document.createElement('span');a.textContent='🐾 '+h.task;b.textContent=`+${h.min} XP · ${h.time}`;d.append(a,b);hl.append(d)});
+}
+function setActive(t){active=t;S.set('ff_active',t);$('pillText').textContent=t;draw();renderTasks()}
+function renderTasks(){
+  const ul=$('tl');ul.innerHTML='';$('cnt').textContent=`${tasks.filter(t=>t.done).length} of ${tasks.length} done`;
+  tasks.forEach(t=>{
+    const li=document.createElement('li');li.className=(t.done?'done ':'')+(t.title===active?'act':'');
+    const lb=document.createElement('label'),cb=document.createElement('input'),sp=document.createElement('span'),x=document.createElement('button');
+    cb.type='checkbox';cb.checked=t.done;sp.textContent=t.title;x.textContent='×';x.title='Remove quest';
+    cb.onchange=()=>{t.done=cb.checked;S.set('ff_tasks',tasks);renderTasks();if(t.done){say('win');toast('Quest complete! ⭐')}};
+    sp.onclick=e=>{e.preventDefault();setActive(t.title);toast(`Active quest: "${t.title}"`)};
+    x.onclick=()=>{tasks=tasks.filter(k=>k.id!==t.id);S.set('ff_tasks',tasks);renderTasks()};
+    lb.append(cb,sp);li.append(lb,x);ul.append(li);
+  });
+}
+$('tf').onsubmit=e=>{e.preventDefault();const t=$('ti').value.trim();if(!t)return;
+  tasks.push({id:Date.now(),title:t,done:false});S.set('ff_tasks',tasks);$('ti').value='';setActive(t);toast(`New quest: "${t}"`)};
+$('pill').onclick=()=>{const n=prompt('Name your quest:',active);if(n&&n.trim())setActive(n.trim())};
+$('clr').onclick=()=>{if(confirm("Clear today's adventure log?")){hist=[];S.set('ff_hist',hist);renderHist()}};
+$('pet').onclick=()=>{$('pet').classList.add('cheer');setTimeout(()=>$('pet').classList.remove('cheer'),1700);say(running?(mode==='pomodoro'?'focus':'nap'):'idle')};
+$('go').onclick=toggle;$('reset').onclick=reset;
+$('plus').onclick=()=>{left+=300;total+=300;if(running)endAt+=300000;draw();toast('Added 5 minutes')};
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>setMode(t.dataset.mode));
+$('fs').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen().catch(()=>{});
+document.addEventListener('click',e=>{const b=e.target.closest('.btn,.tab,.tb');if(b)b.blur()});
+addEventListener('keydown',e=>{
+  if(/INPUT|TEXTAREA/.test(document.activeElement.tagName))return;
+  if(e.code==='Space'){e.preventDefault();toggle()}else if(/^r$/i.test(e.key))reset();else if(/^f$/i.test(e.key))$('fs').click();
+});
+let ctx,src,gain,rainOn=false;
+const AC=()=>ctx||(ctx=new(window.AudioContext||window.webkitAudioContext)());
+$('rain').onclick=()=>{
+  const c=AC();c.resume();
+  if(rainOn){src.stop();rainOn=false;$('rain').classList.remove('on');return}
+  const buf=c.createBuffer(1,c.sampleRate*2,c.sampleRate),d=buf.getChannelData(0);let last=0;
+  for(let i=0;i<d.length;i++){const w=Math.random()*2-1;last=(last+.02*w)/1.02;d[i]=last*3.5}
+  src=c.createBufferSource();src.buffer=buf;src.loop=true;
+  const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=1100;
+  gain=c.createGain();gain.gain.value=$('vol').value/160;
+  src.connect(f);f.connect(gain);gain.connect(c.destination);src.start();rainOn=true;$('rain').classList.add('on');
 };
-
-const MODE_DURATIONS = {
-  pomodoro: 1500,     // 25 mins
-  shortBreak: 300,    // 5 mins
-  longBreak: 900      // 15 mins
-};
-
-// 2 * Math.PI * 138 ≈ 867
-const RING_CIRCUMFERENCE = 867;
-
-// ==========================================
-// State Variables
-// ==========================================
-let currentMode = 'pomodoro';
-let totalDuration = MODE_DURATIONS.pomodoro;
-let remainingSeconds = totalDuration;
-let timerInterval = null;
-let isRunning = false;
-let completedPomodoros = 0;
-
-let tasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS)) || [
-  { id: 1, title: 'Draft system architecture', completed: true },
-  { id: 2, title: 'Refactoring core timer logic', completed: false },
-  { id: 3, title: 'Test sound synth & web audio', completed: false }
-];
-
-let sessionHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.HISTORY)) || [];
-let totalFocusMinutes = parseInt(localStorage.getItem(STORAGE_KEYS.TOTAL_MINS) || '0', 10);
-let activeTask = localStorage.getItem(STORAGE_KEYS.ACTIVE_TASK) || 'Refactoring core timer logic';
-
-// ==========================================
-// DOM Selectors
-// ==========================================
-const timerDisplay = document.getElementById('timerDisplay');
-const progressRing = document.getElementById('progressRing');
-const startBtn = document.getElementById('startBtn');
-const startText = document.getElementById('startText');
-const startIcon = document.getElementById('startIcon');
-const resetBtn = document.getElementById('resetBtn');
-const quickAddBtn = document.getElementById('quickAddBtn');
-const modeButtons = document.querySelectorAll('.mode-btn');
-const activeTaskDisplay = document.getElementById('activeTaskDisplay');
-const activeTaskText = document.getElementById('activeTaskText');
-const sessionLabel = document.getElementById('sessionLabel');
-
-const totalFocusTime = document.getElementById('totalFocusTime');
-const goalPercentage = document.getElementById('goalPercentage');
-const dailyProgressBar = document.getElementById('dailyProgressBar');
-
-const taskForm = document.getElementById('taskForm');
-const newTaskInput = document.getElementById('newTaskInput');
-const taskList = document.getElementById('taskList');
-const taskCountBadge = document.getElementById('taskCountBadge');
-
-const historyList = document.getElementById('historyList');
-const emptyHistoryMsg = document.getElementById('emptyHistoryMsg');
-const clearLogBtn = document.getElementById('clearLogBtn');
-
-const fullscreenBtn = document.getElementById('fullscreenBtn');
-const ambientToggleBtn = document.getElementById('ambientToggleBtn');
-const soundVolume = document.getElementById('soundVolume');
-const toastMessage = document.getElementById('toastMessage');
-
-// ==========================================
-// Timer Logic
-// ==========================================
-
-function updateDisplay() {
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = remainingSeconds % 60;
-  
-  const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  timerDisplay.textContent = formatted;
-  document.title = `${formatted} — ${activeTask || 'FocusFlow'}`;
-
-  // Update ring progress
-  const progressRatio = remainingSeconds / totalDuration;
-  const offset = RING_CIRCUMFERENCE * (1 - progressRatio);
-  progressRing.style.strokeDashoffset = offset;
+$('vol').oninput=e=>{if(gain)gain.gain.value=e.target.value/160};
+function chime(){try{const c=AC(),t=c.currentTime;[659,784,988].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.type='triangle';o.frequency.value=f;
+  g.gain.setValueAtTime(.001,t+i*.14);g.gain.exponentialRampToValueAtTime(.18,t+i*.14+.03);g.gain.exponentialRampToValueAtTime(.0001,t+i*.14+.7);o.connect(g);g.connect(c.destination);o.start(t+i*.14);o.stop(t+i*.14+.8)})}catch{}}
+function confetti(){
+  const em=['⭐','🍓','🐾','🌸','✨','💜'];
+  for(let i=0;i<30;i++){const p=document.createElement('i'),a=Math.random()*Math.PI*2,r=140+Math.random()*280;
+    p.className='cf';p.textContent=em[i%6];
+    p.style.setProperty('--x',Math.cos(a)*r+'px');p.style.setProperty('--y',Math.sin(a)*r-60+'px');p.style.setProperty('--r',Math.random()*540-270+'deg');
+    document.body.append(p);setTimeout(()=>p.remove(),1600)}
 }
-
-function startTimer() {
-  if (isRunning) return;
-  isRunning = true;
-  
-  startBtn.classList.add('running');
-  startText.textContent = 'Pause';
-  startIcon.innerHTML = '&#10074;&#10074;';
-
-  timerInterval = setInterval(() => {
-    if (remainingSeconds > 0) {
-      remainingSeconds--;
-      updateDisplay();
-    } else {
-      completeSession();
-    }
-  }, 1000);
-}
-
-function pauseTimer() {
-  if (!isRunning) return;
-  isRunning = false;
-  clearInterval(timerInterval);
-  
-  startBtn.classList.remove('running');
-  startText.textContent = 'Resume';
-  startIcon.innerHTML = '&#9654;';
-}
-
-function toggleTimer() {
-  if (isRunning) {
-    pauseTimer();
-  } else {
-    startTimer();
-  }
-}
-
-function resetTimer() {
-  pauseTimer();
-  remainingSeconds = totalDuration;
-  startText.textContent = 'Start Focus';
-  startIcon.innerHTML = '&#9654;';
-  updateDisplay();
-}
-
-function setMode(mode) {
-  currentMode = mode;
-  document.body.dataset.mode = mode;
-  totalDuration = MODE_DURATIONS[mode] || 1500;
-  resetTimer();
-  
-  modeButtons.forEach(btn => {
-    const isSelected = btn.dataset.mode === mode;
-    btn.classList.toggle('active', isSelected);
-    btn.setAttribute('aria-selected', isSelected);
-  });
-
-  if (mode === 'pomodoro') {
-    sessionLabel.textContent = `Session ${completedPomodoros + 1} of 4`;
-  } else if (mode === 'shortBreak') {
-    sessionLabel.textContent = 'Rest & Recharge';
-  } else {
-    sessionLabel.textContent = 'Deep Rest';
-  }
-}
-
-function completeSession() {
-  pauseTimer();
-  playChime();
-  
-  const elapsedMins = Math.round(totalDuration / 60);
-
-  if (currentMode === 'pomodoro') {
-    completedPomodoros++;
-    totalFocusMinutes += elapsedMins;
-    localStorage.setItem(STORAGE_KEYS.TOTAL_MINS, totalFocusMinutes);
-    
-    // Save history entry
-    const entry = {
-      task: activeTask,
-      minutes: elapsedMins,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    sessionHistory.unshift(entry);
-    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(sessionHistory));
-    
-    showToast(`Great work! Completed "${activeTask}" (+${elapsedMins}m)`);
-    renderHistory();
-    updateMetrics();
-
-    // Auto-cycle break
-    if (completedPomodoros % 4 === 0) {
-      setMode('longBreak');
-    } else {
-      setMode('shortBreak');
-    }
-  } else {
-    showToast('Break finished! Ready to jump back in?');
-    setMode('pomodoro');
-  }
-}
-
-// ==========================================
-// Metrics & History Log
-// ==========================================
-function updateMetrics() {
-  const hours = Math.floor(totalFocusMinutes / 60);
-  const mins = totalFocusMinutes % 60;
-  totalFocusTime.textContent = `${hours}h ${String(mins).padStart(2, '0')}m`;
-  
-  const targetMinutes = 240; // 4 hour target
-  const pct = Math.min(100, Math.round((totalFocusMinutes / targetMinutes) * 100));
-  
-  goalPercentage.textContent = `${pct}%`;
-  dailyProgressBar.style.width = `${pct}%`;
-}
-
-function renderHistory() {
-  historyList.innerHTML = '';
-  if (sessionHistory.length === 0) {
-    historyList.appendChild(emptyHistoryMsg);
-    return;
-  }
-
-  sessionHistory.slice(0, 8).forEach(entry => {
-    const item = document.createElement('div');
-    item.className = 'history-item';
-    item.innerHTML = `
-      <span class="history-task">${escapeHtml(entry.task)}</span>
-      <span class="history-time">+${entry.minutes}m &bull; ${entry.time}</span>
-    `;
-    historyList.appendChild(item);
-  });
-}
-
-// ==========================================
-// Task Manager
-// ==========================================
-function renderTasks() {
-  taskList.innerHTML = '';
-  
-  const completedCount = tasks.filter(t => t.completed).length;
-  taskCountBadge.textContent = `${completedCount} of ${tasks.length} done`;
-
-  tasks.forEach(task => {
-    const li = document.createElement('li');
-    li.className = `task-item ${task.completed ? 'completed' : ''} ${task.title === activeTask ? 'active' : ''}`;
-    
-    li.innerHTML = `
-      <div class="task-left">
-        <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} data-id="${task.id}" />
-        <span class="task-title">${escapeHtml(task.title)}</span>
-      </div>
-      <button class="task-del-btn" data-id="${task.id}" title="Remove task">&times;</button>
-    `;
-
-    // Click title to set as active focus target
-    li.querySelector('.task-title').addEventListener('click', () => {
-      setActiveTask(task.title);
-    });
-
-    // Checkbox toggle
-    li.querySelector('.task-checkbox').addEventListener('change', (e) => {
-      task.completed = e.target.checked;
-      saveTasks();
-      renderTasks();
-    });
-
-    // Delete task
-    li.querySelector('.task-del-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      tasks = tasks.filter(t => t.id !== task.id);
-      saveTasks();
-      renderTasks();
-    });
-
-    taskList.appendChild(li);
-  });
-}
-
-function setActiveTask(title) {
-  activeTask = title;
-  activeTaskText.textContent = title;
-  localStorage.setItem(STORAGE_KEYS.ACTIVE_TASK, title);
-  updateDisplay();
-  renderTasks();
-  showToast(`Active focus target: "${title}"`);
-}
-
-function saveTasks() {
-  localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
-}
-
-taskForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const title = newTaskInput.value.trim();
-  if (!title) return;
-
-  const newTask = {
-    id: Date.now(),
-    title: title,
-    completed: false
-  };
-  
-  tasks.push(newTask);
-  saveTasks();
-  renderTasks();
-  setActiveTask(title);
-  newTaskInput.value = '';
-});
-
-// Click pill to rename active focus task directly
-activeTaskDisplay.addEventListener('click', () => {
-  const newName = prompt('Set focus target name:', activeTask);
-  if (newName && newName.trim()) {
-    setActiveTask(newName.trim());
-  }
-});
-
-
-// ==========================================
-// Web Audio Ambient Synthesizer & Chime 
-// (No external audio file dependencies)
-// ==========================================
-let audioCtx = null;
-let noiseNode = null;
-let noiseGain = null;
-let isAudioPlaying = false;
-
-function initAudio() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-}
-
-function toggleAmbientAudio() {
-  initAudio();
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-  
-  if (isAudioPlaying) {
-    stopAmbientAudio();
-  } else {
-    startAmbientAudio();
-  }
-}
-
-function startAmbientAudio() {
-  initAudio();
-  
-  // Create 2-second pink noise buffer
-  const bufferSize = audioCtx.sampleRate * 2;
-  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  
-  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-  for (let i = 0; i < bufferSize; i++) {
-    const white = Math.random() * 2 - 1;
-    b0 = 0.99886 * b0 + white * 0.0555179;
-    b1 = 0.99332 * b1 + white * 0.0750759;
-    b2 = 0.96900 * b2 + white * 0.1538520;
-    b3 = 0.86650 * b3 + white * 0.3104856;
-    b4 = 0.55000 * b4 + white * 0.5329522;
-    b5 = -0.7616 * b5 - white * 0.0168980;
-    data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.05;
-    b6 = white * 0.115926;
-  }
-
-  noiseNode = audioCtx.createBufferSource();
-  noiseNode.buffer = buffer;
-  noiseNode.loop = true;
-
-  // Gentle lowpass filter for smooth rain atmosphere
-  const filter = audioCtx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = 850;
-
-  noiseGain = audioCtx.createGain();
-  noiseGain.gain.value = soundVolume.value / 250;
-
-  noiseNode.connect(filter);
-  filter.connect(noiseGain);
-  noiseGain.connect(audioCtx.destination);
-  
-  noiseNode.start();
-  isAudioPlaying = true;
-  ambientToggleBtn.classList.add('active');
-}
-
-function stopAmbientAudio() {
-  if (noiseNode) {
-    try { noiseNode.stop(); } catch (e) {}
-    noiseNode.disconnect();
-  }
-  isAudioPlaying = false;
-  ambientToggleBtn.classList.remove('active');
-}
-
-soundVolume.addEventListener('input', (e) => {
-  if (noiseGain) {
-    noiseGain.gain.value = e.target.value / 250;
-  }
-});
-
-// Soft bell chime upon session end
-function playChime() {
-  try {
-    initAudio();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-    osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.4); // A5
-    
-    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.2);
-    
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    osc.start();
-    osc.stop(audioCtx.currentTime + 1.2);
-  } catch (e) {
-    console.warn('Audio play restricted by browser policy');
-  }
-}
-
-// ==========================================
-// Toast & Utility Helpers
-// ==========================================
-let toastTimeout = null;
-function showToast(msg) {
-  toastMessage.textContent = msg;
-  toastMessage.classList.add('show');
-  
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => {
-    toastMessage.classList.remove('show');
-  }, 3200);
-}
-
-function escapeHtml(str) {
-  return str.replace(/[&<>'"]/g, 
-    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-  );
-}
-
-// Clear today's history
-clearLogBtn.addEventListener('click', () => {
-  if (confirm("Clear today's session history?")) {
-    sessionHistory = [];
-    localStorage.removeItem(STORAGE_KEYS.HISTORY);
-    renderHistory();
-  }
-});
-
-// Fullscreen toggle
-fullscreenBtn.addEventListener('click', () => {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
-  } else {
-    document.exitFullscreen();
-  }
-});
-
-// Quick add +5 minutes
-quickAddBtn.addEventListener('click', () => {
-  remainingSeconds += 300;
-  totalDuration += 300;
-  updateDisplay();
-  showToast('Added +5 minutes to current session');
-});
-
-// Listeners
-startBtn.addEventListener('click', toggleTimer);
-resetBtn.addEventListener('click', resetTimer);
-ambientToggleBtn.addEventListener('click', toggleAmbientAudio);
-
-modeButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    setMode(btn.dataset.mode);
-  });
-});
-
-// Keyboard Shortcuts
-window.addEventListener('keydown', (e) => {
-  if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-  
-  if (e.code === 'Space') {
-    e.preventDefault();
-    toggleTimer();
-  } else if (e.key === 'r' || e.key === 'R') {
-    e.preventDefault();
-    resetTimer();
-  } else if (e.key === 'f' || e.key === 'F') {
-    e.preventDefault();
-    fullscreenBtn.click();
-  }
-});
-
-// Initial boot
-activeTaskText.textContent = activeTask;
-updateDisplay();
-renderTasks();
-renderHistory();
-updateMetrics();
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),3200)}
+let started=false;const h=new Date().getHours();
+$('greet').textContent=(h<5?'Late night grind':h<12?'Good morning':h<18?'Good afternoon':'Good evening')+'! Let\'s grow together 🌱';
+$('pillText').textContent=active;setMode('pomodoro');renderTasks();renderHist();stats();started=true;
 

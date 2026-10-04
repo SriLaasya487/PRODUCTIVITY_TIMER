@@ -144,6 +144,7 @@ function resetTimer() {
 
 function setMode(mode) {
   currentMode = mode;
+  document.body.dataset.mode = mode;
   totalDuration = MODE_DURATIONS[mode] || 1500;
   resetTimer();
   
